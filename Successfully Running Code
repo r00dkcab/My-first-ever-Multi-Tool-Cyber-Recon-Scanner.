@@ -1,0 +1,81 @@
+import socket
+import requests 
+import threading
+import dns.resolver
+
+# -------- SETTINGS --------
+SUBDOMAINS = ["www", "mail", "ftp", "api", "test", "dev", "admin", "blog"]
+
+def get_ports():
+    choice = input ("\n🔢 Full Scan (0-65535) or common ports only? [full/common]: ").strip().lower()
+    if choice == "full":
+        return list(range(1, 65536))
+    else:
+        return [21, 22, 23, 25, 53, 80, 110, 143, 443, 3306, 8080, 8443] 
+     
+# -------- IP & STATUS --------
+def show_ip(domain):
+     try:
+          ip = socket.gethostbyname(domain)
+          print(f"\n🌐 Domain IP: {ip}")
+     except:
+          print ("❌ Could not resolve domain to IP")
+
+def check_website(domain):
+     try:
+          r = requests.get(f"https://{domain}", timeout=3)
+          print(f"\n✅  HTTPS Status: {r.status_code} - {r.reason}")
+          print("📥 Headers:")
+          for key, val in r.headers.items():
+              print(f"  {key}: {val}")
+     except Exception as e:
+         print(f"❌ Error reaching sites: {e}")
+
+# -------- SUBDOMAIN SCANNER --------
+def scan_subdomains(domain):
+    print("\n🔎 Subdomain scan:")
+    for sub in SUBDOMAINS:
+        url = f"{sub}.{domain}"
+        try:
+             socket.gethostbyname(url)
+             print(f"✅ Found: {url}")
+        except:
+            pass  # skip failed ones
+
+# -------- PORT SCANNER --------
+def scan_port(domain, port):
+     try:
+          s = socket.socket()
+          s.settimeout(1)
+          result = s.connect_ex((domain, port))
+          if result == 0:
+              try:
+                  request = f"HEAD / HTTP/1.1\r\nHost: {domain}\r\n\r\n"
+                  s.send(request.encode())
+                  banner = s.recv(1024).decode(errors="ignore").strip()
+              except:
+                  banner = "No banner returned"
+              print(f"🟢 Port {port} is OPEN - Banner: {banner.splitlines()[0] if banner else 'Unknown'}")
+          s.close()
+     except:
+         pass
+
+def start_port_scan(domain, port_list):
+     print("\n🔧 Scanning ports:")
+     threads = []
+     for port in port_list:
+          t = threading.Thread(target=scan_port, args=(domain, port))
+          threads.append(t)
+          t.start()for t in threads:
+              t.join()
+
+# -------- MAIN --------
+if __name__ == "__main__":
+    target = input("Enter domain (example: google.com): ").strip()
+    port_list = get_ports()
+    show_ip(target)
+    check_website(target)
+    scan_subdomains(target)
+    start_port_scan(target, port_list)
+    print("\n✅ Scan complete.")
+
